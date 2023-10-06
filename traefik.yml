@@ -1,0 +1,65 @@
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: debug
+  format: json
+
+accessLog:
+  format: json
+  bufferingSize: 5
+
+providers:
+  docker:
+    watch: true
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    swarmMode: true
+    network: proxy_main
+    swarmModeRefreshSeconds: 5
+
+  file:
+    directory: /conf.d
+    watch: true
+
+entryPoints:
+  web:
+    address: :80
+    forwardedHeaders:
+      insecure: true
+
+  websecure:
+    address: :443
+    forwardedHeaders:
+      insecure: true
+
+api:
+  dashboard: true
+  insecure: true
+  debug: true
+
+certificatesResolvers:
+  le:
+    acme:
+      email: chat.alter.me@gmail.com
+      storage: /letsencrypt/acme.json
+      tlsChallenge: {}
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+
+# -- Configure your CertificateResolver here...
+# certificatesResolvers:
+#   staging:
+#     acme:
+#       email: chat.alter.me@gmail.com
+#       storage: /letsencrypt/acme.json
+#       caServer: "https://acme-staging-v02.api.letsencrypt.org/directory"
+#       httpChallenge:
+#         entryPoint: web
+#   production:
+#     acme:
+#       email: chat.alter.me@gmail.com
+#       storage: /letsencrypt/acme.json
+#       caServer: "https://acme-v02.api.letsencrypt.org/directory"
+#       httpChallenge:
+#         entryPoint: web

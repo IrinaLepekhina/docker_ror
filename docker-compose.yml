@@ -1,0 +1,217 @@
+version: '3.8' 
+
+services:
+
+  web:
+    # image: ghcr.io/irinalepekhina/planta_chat:dev
+    build:
+      context: ./planta_chat
+      # dockerfile: ./Dockerfile.prod
+    container_name: web
+    ports:
+      - "3000:3000"
+      - "4000:4000"
+    volumes:
+      - ./planta_chat:/usr/src/app
+    env_file:
+      - ./planta_chat/env/development/database
+      - ./planta_chat/env/development/web
+    depends_on: 
+      web_db:
+        condition: service_started
+      web_redis:
+        condition: service_started
+    networks:
+      - back
+      - front
+
+  web_redis:
+    image: redis/redis-stack:latest
+    container_name: web_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - back
+
+  web_redis_uploader:
+    # image: ghcr.io/irinalepekhina/planta_chat:dev
+    image: docker_ror-web
+    container_name: web_redis_uploader
+    command: ["./wait-for", "--timeout=60", "web_redis:6379", "--",
+      "ruby", "bin/redis_uploader.rb"]
+    env_file:
+      - ./planta_chat/env/development/database
+      - ./planta_chat/env/development/web
+    networks:
+      - back
+    deploy:
+      restart_policy:
+        condition: none
+
+  web_db_migrator:
+    # image: ghcr.io/irinalepekhina/planta_chat:dev
+    image: docker_ror-web
+    container_name: web_db_migrator
+    command: ["./wait-for", "--timeout=60", "web_db:5432", "--",
+      "bin/rails", "db:prepare"]
+    env_file:
+      - ./planta_chat/env/development/database
+      - ./planta_chat/env/development/web
+    networks:
+      - back
+    deploy:
+      restart_policy:
+        condition: none
+
+  web_db:
+    image: postgres
+    container_name: web_db
+    env_file:
+      - ./planta_chat/env/development/database
+    volumes:
+      - db_data_web:/var/lib/postgresql/data
+    networks:
+      - back
+
+  web_redisinsight:
+    image: redislabs/redisinsight:latest
+    container_name:  web_redisinsight
+    ports:
+      - '8001:8001'
+    volumes:
+      - redisinsight_data_web:/db
+    networks:
+      - back
+
+  selenium_chrome:
+    image: selenium/standalone-chrome-debug
+    container_name:  selenium_chrome
+    logging:
+      driver: none
+    ports:
+      - "5900:5900"
+    networks:
+      - back
+
+## bot services
+  bot:
+    # image: ghcr.io/irinalepekhina/tg_bot:dev
+    build:
+      context: ./tg_bot
+      # dockerfile: ./Dockerfile.prod
+    container_name: bot
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./tg_bot:/usr/src/app
+    env_file:
+      - ./tg_bot/env/development/database
+      - ./tg_bot/env/development/web
+    depends_on:
+      bot_redis:
+        condition: service_started
+      web:
+        condition: service_started
+      ngrok:
+        condition: service_started
+    networks:
+      - front
+
+  bot_redis:
+    image: redis/redis-stack:latest
+    container_name: bot_redis
+    ports:
+      - "6380:6379"
+    networks:
+      - front
+
+  bot_db:
+    image: postgres
+    container_name: bot_db
+    env_file:
+      - ./tg_bot/env/development/database
+    volumes:
+      - db_data_bot:/var/lib/postgresql/data
+    networks:
+      - front
+
+  bot_db_migrator:
+    # image: ghcr.io/irinalepekhina/tg_bot:dev
+    image: docker_ror-bot
+    container_name:  bot_db_migrator
+    command: ["./wait-for", "--timeout=60", "bot_db:5432", "--",
+      "bin/rails", "db:prepare"]
+    env_file:
+      - ./tg_bot/env/development/database
+      - ./tg_bot/env/development/web
+    networks:
+      - front
+    deploy:
+      restart_policy:
+        condition: none
+
+  bot_webhook:
+    # image: ghcr.io/irinalepekhina/tg_bot:dev
+    image: docker_ror-bot
+    container_name:  bot_webhook
+    env_file:
+      - ./tg_bot/env/development/database
+      - ./tg_bot/env/development/web
+    command: ["./wait-for", "--timeout=90", "bot:3000", "--",
+      "ruby", "bin/set_telegram_webhook.rb"]
+    networks:
+      - front
+    deploy:
+      restart_policy:
+        condition: none
+        
+  bot2web_signup:
+    # image: ghcr.io/irinalepekhina/tg_bot:dev
+    image: docker_ror-bot
+    container_name:  user_init_bot
+    command: ["./wait-for", "--timeout=120", "bot:3000", "--",
+      "ruby", "bin/initializing_bot_user.rb"]
+    env_file:
+      - ./tg_bot/env/development/database
+      - ./tg_bot/env/development/web
+    networks:
+      - front
+    deploy:
+      restart_policy:
+        condition: none
+
+  ngrok:
+    image: ngrok/ngrok
+    container_name:  ngrok
+    env_file:
+      - ./tg_bot/env/development/web
+    command: 
+      - http
+      - "bot:3000"
+      - "--domain=sweet-vital-coral.ngrok-free.app"
+    ports:
+      - "4040:4040"
+    networks:
+      - front
+
+  bot_redisinsight:
+    image: redislabs/redisinsight:latest
+    container_name:  bot_redisinsight
+    ports:
+      - '8002:8001'
+    volumes:
+      - redisinsight_data_bot:/db
+    networks:
+      - front
+
+volumes:
+  db_data_web:
+  redisinsight_data_web:
+  db_data_bot:
+  redisinsight_data_bot:
+
+networks:
+  front:
+    driver: bridge
+  back:
+    driver: bridge

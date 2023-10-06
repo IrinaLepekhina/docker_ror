@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  main:
+    image: traefik:v2.10
+    ports:
+      - "80:80"
+      - "8080:8080"
+      - "443:443"
+    configs:
+      - source: middlewares-config
+        target: /conf.d/middlewares.yml
+      - source: tls-config
+        target: /conf.d/tls.yml
+      - source: traefik-config
+        target: /traefik.yml
+      # - source: routers-config
+      #   target: /conf.d/routers.yml
+    networks:
+      - proxy_main
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - tls_certs:/letsencrypt
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.traefik == true
+      labels:
+        - "traefik.enable=true" # Enable Traefik, because we disabled expose a service by default
+        - "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)" # global redirect to https
+        - "traefik.http.routers.http-catchall.entrypoints=web"
+        - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+        - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+ 
+        # Dummy service for Docker Swarm
+        - "traefik.http.services.dummy-service.loadbalancer.server.port=59999"
+
+volumes:
+  tls_certs:
+
+networks:
+  proxy_main:
+    driver: overlay
+    attachable: true
+    name: proxy_main
+
+configs:
+  traefik-config:
+    name: traefik-config-${CONFIG:-1}
+    file: ./traefik.yml
+  tls-config:
+    name: tls-config-${CONFIG:-1}
+    file: ./conf.d/tls.yml
+  middlewares-config:
+    name: middlewares-config-${CONFIG:-1}
+    file: ./conf.d/middlewares.yml
+  # routers-config:
+  #   name: routers-config-${CONFIG:-1}
+  #   file: ./conf.d/routers.yml

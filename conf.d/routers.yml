@@ -1,0 +1,16 @@
+http:
+  routers:
+    http-catchall:
+      rule: HostRegexp(`{host:.+}`)
+      entryPoints:
+        - web
+      middlewares:
+        - https-redirect
+  #     service: dummy-service
+  
+  # services:
+  #   dummy-service:
+  #     loadBalancer:
+  #       servers:
+  #         port: "59999"
+  #         url: "http://localhost"
