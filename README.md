@@ -4,15 +4,15 @@ This repository contains the infrastructure setup, deployment scripts, and confi
 
 ### Getting Started
 
-$ git clone https://github.com/IrinaLepekhina/infrastructure.git
+`$ git clone https://github.com/IrinaLepekhina/infrastructure.git`
 
 ### Other Repositories
 
 To work with associated projects, you can clone the following repositories:
 
-$ git clone https://github.com/IrinaLepekhina/planta_chat.git
+`$ git clone https://github.com/IrinaLepekhina/planta_chat.git`
 
-$ git clone https://github.com/IrinaLepekhina/tg_bot.git
+`$ git clone https://github.com/IrinaLepekhina/tg_bot.git`
 
 ### Configuration Files:
 
