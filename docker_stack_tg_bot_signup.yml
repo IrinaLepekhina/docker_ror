@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  tg_bot_signup:
+    image: ghcr.io/irinalepekhina/tg_bot:latest
+    command: ["./wait-for", "--timeout=300", "muul_tg_bot:3001", "--",
+      "ruby", "bin/initializing_bot_user.rb"]
+    env_file:
+      - ../tg_bot/env/production/database
+      - ../tg_bot/env/production/tg_bot
+    networks:
+      - muul_tg_bot_front
+      - muul_chat_bot
+    deploy:
+      restart_policy:
+        condition: none
+
+networks:
+  muul_tg_bot_front:
+    external: true
+  muul_chat_bot:
+    external: true

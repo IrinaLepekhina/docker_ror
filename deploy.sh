@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# This script provides functions to deploy Docker stacks, set labels on Docker nodes, pull Docker images, list Docker volumes and networks,
+# and wait for a specified duration.
+#
+# It targets a specific Docker Machine named "do-manager-1" by default but can be configured.
+#
+# The script offers the following functions:
+# 1. set_labels(node_name): Sets the "traefik=true" label on a specified Docker node if it doesn't already have it.
+# 2. list_volumes(): Lists all current Docker volumes.
+# 3. list_docker_networks(): Lists all current Docker networks.
+# 4. deploy_docker_stack(stack_file, stack_name): Deploys a Docker stack from a specified Compose file and stack name.
+# 5. wait_with_message(duration): Sleeps for a specified duration with a message.
+# 6. deploy_and_wait(stack_file, stack_name, duration): Deploys a Docker stack and waits for the specified duration.
+# 7. pull_image(image): Pulls the latest version of a Docker image.
+#
+# Prerequisites: Docker and Docker Machine must be installed and configured.
+
 # Function to set labels
 set_labels() {
     local node_name="$1"
@@ -16,7 +32,12 @@ set_labels() {
     fi
 }
 
-# Function to list docker networks
+# Function to list docker volimes
+list_volumes() {
+    echo "======= Current Docker Volumes ======="
+    docker volume ls
+}
+
 list_docker_networks() {
     echo "======= Current Docker Networks ======="
     docker network ls
@@ -47,31 +68,27 @@ deploy_and_wait() {
     wait_with_message "$duration"
 }
 
-# Function to ensure acme.json exists
-ensure_acme_json() {
-    local acme_path="./letsencrypt/acme.json"
+pull_image() {
+    local image="$1"
     
-    if [[ ! -f "$acme_path" ]]; then
-        echo "acme.json does not exist. Creating it now..."
-        mkdir -p "$(dirname "$acme_path")"
-        touch "$acme_path"
-        chmod 600 "$acme_path"
-        # The chown command may not be necessary if your Docker setup doesn't need a specific user ownership.
-        # chown traefik:traefik "$acme_path"
-        echo "acme.json created with appropriate permissions."
-    else
-        echo "acme.json already exists."
-    fi
+    echo "Pulling the latest image from $image..."
+    docker pull "$image"
 }
 
 main() {
-    # ensure_acme_json
-    eval $(docker-machine env do-manager-1)
-    set_labels "do-manager-1"
-    list_docker_networks
-    deploy_and_wait "docker-stack-tr-main.yml" "traefik" 300
-    deploy_and_wait "docker-stack-web.yml" "muul" 200
-    deploy_and_wait "docker-stack-bot.yml" "muul" 100
+  eval $(docker-machine env do-manager-1)
+  set_labels "do-manager-1"
+  list_docker_networks
+  list_volumes
+  deploy_and_wait "docker_stack_proxy_main.yml" "traefik" 300
+  pull_image "ghcr.io/irinalepekhina/ai_chat:latest"
+  pull_image "ghcr.io/irinalepekhina/tg_bot:latest"
+  sleep 15
+  deploy_and_wait "docker_stack_ai_chat.yml" "muul" 300
+  deploy_and_wait "docker_stack_tg_bot.yml" "muul" 300
+
+  deploy_and_wait "docker_stack_tg_bot_signup.yml" "muul" 200
+  deploy_and_wait "docker_stack_tg_bot_webhook.yml" "muul" 200
 }
-    # --with-registry-auth --prune
+
 main

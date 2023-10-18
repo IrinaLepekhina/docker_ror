@@ -45,9 +45,9 @@ certificatesResolvers:
       email: chat.alter.me@gmail.com
       storage: /letsencrypt/acme.json
       tlsChallenge: {}
+      caServer: https://acme-v02.api.letsencrypt.org/directory
       # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
 
-# -- Configure your CertificateResolver here...
 # certificatesResolvers:
 #   staging:
 #     acme:

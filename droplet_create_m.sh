@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# This script creates a Docker Swarm Manager Node on DigitalOcean.
+# Prerequisites:
+#   - Docker Machine and 'doctl' command-line tools must be installed.
+#   - You need a valid DigitalOcean access token set in the DIGITAL_OCEAN_TOKEN environment variable.
+
 NUM_WORKERS=2
 REGION=ams3
 SIZE=s-1vcpu-1gb

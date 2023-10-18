@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# This script automates the setup of a Docker Swarm cluster with a manager node and multiple worker nodes on DigitalOcean.
+#
+# Prerequisites:
+#   - Docker Machine and 'doctl' command-line tools must be installed.
+#   - You need a valid DigitalOcean access token set in the DIGITAL_OCEAN_TOKEN environment variable.
+# Usage:
+#   - Modify the script's configuration variables as needed.
+#   - Run the script to create a Docker Swarm cluster.
+
 NUM_WORKERS=2
 REGION=ams3
 SIZE=s-1vcpu-1gb

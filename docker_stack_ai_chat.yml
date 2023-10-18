@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  ai_chat:
+    image: ghcr.io/irinalepekhina/ai_chat:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../ai_chat/env/production/database
+      - ../ai_chat/env/production/ai_chat
+    networks:
+      - ai_chat_back
+      - chat_bot
+      - proxy_main
+    # secrets:
+    #   - source: ai_chat_master_key
+    #     target: /config/master.key 
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      resources:
+        limits:
+          memory: 128M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.muul_ai_chat.rule=Host(`web1.muul.ru`)"
+        - "traefik.http.routers.muul_ai_chat.service=muul_ai_chat"
+        - "traefik.http.routers.muul_ai_chat.tls.certresolver=le"
+        - "traefik.http.routers.muul_ai_chat.entrypoints=websecure,web"
+        - "traefik.http.services.muul_ai_chat.loadbalancer.server.port=3000"
+        - "traefik.http.services.muul_ai_chat.loadbalancer.passhostheader=true"
+
+  ai_chat_redis:
+    image: redis/redis-stack:latest
+    networks:
+      - ai_chat_back
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+
+  ai_chat_db:
+    image: postgres:latest
+    env_file:
+      - ../ai_chat/env/production/database
+    volumes:
+      - db_data_ai_chat:/var/lib/postgresql/data
+    networks:
+      - ai_chat_back
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+
+  ai_chat_db_migrator:
+    image: ghcr.io/irinalepekhina/ai_chat:latest
+    command: ["./wait-for", "--timeout=500", "ai_chat_db:5432", "--",
+      "bin/rails",  "db:migrate", "--trace"]
+    env_file:
+      - ../ai_chat/env/production/database
+      - ../ai_chat/env/production/ai_chat
+    networks:
+      - ai_chat_back
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: none
+
+  ai_chat_redis_uploader:
+    image: ghcr.io/irinalepekhina/ai_chat:latest
+    command: ["./wait-for", "--timeout=500", "ai_chat_redis:6379", "--",
+      "ruby", "bin/redis_uploader.rb"]
+    env_file:
+      - ../ai_chat/env/production/database
+      - ../ai_chat/env/production/ai_chat
+    networks:
+      - ai_chat_back
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: none
+
+networks:
+  ai_chat_back:
+    driver: overlay
+    attachable: true
+    name: muul_ai_chat_back
+  chat_bot:
+    driver: overlay
+    attachable: true
+    name: muul_chat_bot
+  proxy_main:
+    external: true
+
+volumes:
+  db_data_ai_chat:
+
+# secrets:
+#   ai_chat_master_key:
+#     external: true

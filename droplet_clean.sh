@@ -1,79 +1,106 @@
 #!/bin/bash
 
+# This script is designed to clean up and reset Docker resources on a specified Docker Machine.
+#
+# It targets the Docker Machine named "do-manager-1" by default, but you can change the MACHINE_NAME variable.
+# The script performs the following operations:
+# 1. Leaves the Docker Swarm (if the node is part of one).
+# 2. Removes Docker services.
+# 3. Removes Docker stacks.
+# 4. Removes Docker containers.
+# 5. Removes Docker volumes (except for the "traefik_tls_certs" volume).
+# 6. Removes Docker networks.
+# 7. Removes Docker images.
+# 8. Performs a complete system cleanup, including volumes and unused images.
+#
+# Prerequisites: Docker and Docker Machine must be installed and configured.
+
 MACHINE_NAME="do-manager-1"
-MACHINE_IP=$(docker-machine ip $MACHINE_NAME)
 
 echo "Targeting Docker Machine: $MACHINE_NAME"
-echo "Targeting Machine IP: $MACHINE_IP"
+echo "Targeting Machine IP: $(docker-machine ip $MACHINE_NAME)"
 
-# SSH into the docker machine and run the cleanup commands
-docker-machine ssh $MACHINE_NAME << 'ENDSSH'
-# Check if node is part of a Swarm
+sleep_and_print() {
+    sleep 5
+    echo "Waiting for resources to be freed..."
+}
+
+leave_swarm() {
     IS_PART_OF_SWARM=$(docker info --format '{{.Swarm.LocalNodeState}}')
-    
     if [ "$IS_PART_OF_SWARM" == "active" ]; then
-        # Check if node is a Swarm manager
         IS_MANAGER=$(docker info --format '{{.Swarm.ControlAvailable}}')
-        
         if [ "$IS_MANAGER" == "true" ]; then
             echo "Node is a Swarm manager. Leaving the Swarm..."
-            
-            # Demote if there are other managers
             OTHER_MANAGERS=$(docker node ls --filter "role=manager" -q | wc -l)
             if [ "$OTHER_MANAGERS" -gt 1 ]; then
                 NODE_ID=$(docker info --format '{{.Swarm.NodeID}}')
                 docker node demote $NODE_ID
             fi
-            
-            # Leave the Swarm
             docker swarm leave --force
         else
             echo "Node is a Swarm worker. Leaving the Swarm..."
             docker swarm leave
         fi
-        sleep 5  # Allow for node to fully leave the Swarm
+        sleep_and_print
     fi
+}
 
-# List and remove any remaining Docker Swarm services
+remove_services() {
     SERVICES=$(docker service ls -q)
     if [ ! -z "$SERVICES" ]; then
-        for SERVICE in $SERVICES; do
-            docker service rm $SERVICE
-        done
-        sleep 5  # Give Docker some time to remove the services
+        docker service rm $SERVICES
+        sleep_and_print
     fi
+}
 
-# Remove the Stack
-    docker stack rm muul
-    sleep 5  # Allow for stack resources to be freed
-    # Remove the Stack
-    docker stack rm traefik
-    sleep 5  # Allow for stack resources to be freed
+remove_stacks() {
+    for stack in muul traefik; do
+        docker stack rm $stack
+        sleep_and_print
+    done
+}
 
-# Remove all containers
+remove_containers() {
     CONTAINERS=$(docker ps -aq)
     if [ ! -z "$CONTAINERS" ]; then
         docker rm -f $CONTAINERS
     fi
+}
 
-# Remove all volumes
-    VOLUMES=$(docker volume ls -q)
-    if [ ! -z "$VOLUMES" ]; then
-        docker volume rm $VOLUMES
-    fi
+remove_volumes_except() {
+    local exception=$1
+    VOLUMES=$(docker volume ls -q | grep -v "^$exception$")
+    docker volume rm $VOLUMES
+}
 
-# Remove all networks (excluding predefined ones)
+remove_networks() {
     NETWORKS=$(docker network ls --filter "type=custom" -q)
     if [ ! -z "$NETWORKS" ]; then
         docker network rm $NETWORKS
     fi
+}
 
-# Remove all images
+remove_images() {
     IMAGES=$(docker images -q)
     if [ ! -z "$IMAGES" ]; then
         docker rmi -f $IMAGES
     fi
+}
 
-    # Clean up dangling resources
+clean_system() {
     docker system prune -a --volumes -f
-ENDSSH
+}
+
+main() {
+    eval $(docker-machine env $MACHINE_NAME)
+    leave_swarm
+    remove_services
+    remove_stacks
+    remove_containers
+    remove_volumes_except "traefik_tls_certs"
+    remove_networks
+    remove_images
+    eval $(docker-machine env -u) # Reset the Docker environment back to the local machine
+}
+
+main

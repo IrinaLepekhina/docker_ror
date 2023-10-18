@@ -1,5 +1,22 @@
 #!/bin/bash
 
+# This script performs various Docker-related checks and operations with configurable options.
+#
+# Usage: ./stat.sh [options]
+# Run the script with default settings:
+#     ./stat.sh
+#
+# Options:
+#   --no-config: Skip displaying service configurations
+#   --no-error-logs: Skip displaying error logs
+#   --show-all-logs: Show all logs, including informational logs
+#
+# Note: You can comment out or uncomment specific checks and operations in the 'main' function
+# based on your requirements. Modify the 'DOCKER_COMMANDS' or 'SERVICES_TO_CHECK' array and set flags to 0 or 1
+# to customize the script's behavior as needed.
+#
+# Prerequisites: Docker and Docker Machine must be installed and configured.
+
 # Global Variable
 declare -A DOCKER_COMMANDS=(
   ["Docker Services"]="docker service ls"
@@ -10,9 +27,8 @@ declare -A DOCKER_COMMANDS=(
   ["Services of traefik Stack"]="docker stack services traefik"
   ["Docker Machine List"]="docker-machine ls"
   ["Docker Networks"]="docker network ls"
-  ["Docker Networks Inspect"]="docker network inspect proxy_main"
   ["Docker Volumes"]="docker volume ls"
-  
+  ["Docker Networks Inspect"]="docker network inspect muul_chat_bot"
 )
 
 # Function to get Docker general information
@@ -69,58 +85,6 @@ check_docker_socket_permissions() {
         echo "Docker socket has read and write permissions for the group."
     else
         echo "Docker socket does NOT have read and write permissions for the group!"
-    fi
-}
-
-check_service_connectivity() {
-    # local service_url="http://muul_web:3000/api/signup"
-    # local service_url="https://web2.muul.ru/api/signup"
-    local service_url="http://web:3000/api/signup"
-    echo "======= Checking Service Connectivity ======="
-    
-    # Get the container ID of the running bot service
-    local bot_container_id=$(docker ps --filter "name=muul_bot" --format "{{.ID}}" | head -n 1)
-
-    # Check the status of the bot container
-    if [ -z "$bot_container_id" ]; then
-        echo "Bot container is not running!"
-        return
-    fi
-
-    echo "Bot Container ID: $bot_container_id"
-
-    # Attempt to curl the web service from within the bot container
-    local connectivity=$(docker exec "$bot_container_id" curl -s -o /dev/null -w "%{http_code}" "$service_url")
-    
-    # Display the result based on the HTTP status code
-    if [ "$connectivity" == "200" ]; then
-        echo "Connectivity between bot and $service_url service: SUCCESSFUL"
-    else
-        echo "Connectivity between bot and $service_url service: FAILED with HTTP status $connectivity"
-    fi
-}
-
-test_swarm_connectivity() {
-    echo "======= Testing Connectivity from Within the Swarm ======="
-    
-    # Get the container ID of the running bot service
-    local bot_container_id=$(docker ps --filter "name=muul_bot" --format "{{.ID}}" | head -n 1)
-
-    # Check if the bot container is running
-    if [ -z "$bot_container_id" ]; then
-        echo "Bot container is not running!"
-        return
-    fi
-    
-    echo "Bot Container ID: $bot_container_id"
-
-    # Test connectivity by curling the muul_web service from within the bot container
-    local service_url="http://muul_web:3000/api/signup"
-    echo "Curling $service_url from bot container..."
-    if docker exec "$bot_container_id" curl -s -o /dev/null -w "%{http_code}\n" "$service_url"; then
-        echo "Curl to $service_url successful."
-    else
-        echo "Curl to $service_url failed."
     fi
 }
 
@@ -245,39 +209,84 @@ check_services() {
     done
 }
 
+list_docker_subnets() {
+    # Get a list of all Docker network IDs
+    network_ids=$(docker network ls -q)
+
+    echo "Listing subnets for Docker networks:"
+    echo "------------------------------------"
+
+    for id in $network_ids; do
+        # Extract the name and subnet for each network
+        network_name=$(docker network inspect -f '{{.Name}}' $id)
+        subnet=$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' $id)
+
+        echo "Network Name: $network_name"
+        echo "Subnet: $subnet"
+        echo "------------------------------------"
+    done
+}
+
+check_service_connectivity() {
+    local service_url="http://muul_ai_chat:3000/api/signup"
+    echo "======= Checking Service Connectivity ======="
+    
+    # Get the container ID and name of the running bot service
+    local bot_container_id=$(docker ps --filter "name=^muul_tg_bot.1." --format "{{.ID}}" | head -n 1)
+    local bot_container_name=$(docker ps --filter "name=^muul_tg_bot.1." --format "{{.Names}}" | head -n 1)
+
+    # Check the status of the bot container
+    if [ -z "$bot_container_id" ]; then
+        echo "Bot container is not running!"
+        return
+    fi
+
+    echo "Bot Container ID: $bot_container_id"
+    echo "Bot Container Name: $bot_container_name"
+
+    # Attempt to curl the web service from within the bot container
+    local connectivity=$(docker exec "$bot_container_id" curl -s -o /dev/null -w "%{http_code}" "$service_url")
+    
+    # Display the result based on the HTTP status code
+    if [ "$connectivity" == "200" ]; then
+        echo "Connectivity between bot and $service_url service: SUCCESSFUL"
+    else
+        echo "Connectivity between bot and $service_url service: FAILED with HTTP status $connectivity"
+    fi
+}
+
 SERVICES_TO_CHECK=(
-    # "traefik_main"
-    "muul_web"
-    "muul_bot"
-    "muul_web_db_migrator"
-    "muul_bot_db_migrator"
-    "muul_web_db"
-    "muul_bot_db"
-    "muul_web_redis"
-    "muul_web_redis_uploader"
-    "muul_bot_redis"
-    "muul_bot2web_signup"
-    "muul_bot_webhook"
+    "traefik_main"
+    "muul_ai_chat"
+    "muul_tg_bot"
+    "muul_ai_chat_db_migrator"
+    "muul_tg_bot_db_migrator"
+    "muul_ai_chat_db"
+    "muul_tg_bot_db"
+    "muul_ai_chat_redis"
+    "muul_ai_chat_redis_uploader"
+    "muul_tg_bot_redis"
+    "muul_tg_bot_signup"
+    "muul_tg_bot_webhook"
 )
 
 NO_CONFIG=1
 NO_ERROR_LOGS=1
-SHOW_ALL_LOGS=11
+SHOW_ALL_LOGS=1
 
-# Main execution function
 main() {
-  check_dns "web2.muul.ru" "tg2.muul.ru"
-  setup_docker_machine
-  check_ports 80 443 8080
-  get_docker_info
-  check_traefik_acme_logs
-  list_containers_attached_to_network "proxy_main"
-#   check_services "10.0.1.3:59999" "10.0.1.8:80" "10.0.1.6:80"
+  check_dns "web.muul.ru" "tg.muul.ru"
 
+  setup_docker_machine
+  get_docker_info
+  check_ports 80 443 8080 3000 3001
+  check_service_connectivity
+  list_containers_attached_to_network "muul_chat_bot"
   check_acme_contents
   check_docker_socket_permissions
-  check_service_connectivity
-  test_swarm_connectivity
+  list_docker_subnets
+#   check_traefik_acme_logs
+#   check_services "10.0.1.3:59999" "10.0.1.8:80" "10.0.1.6:80"
 
   local flags=()
   if [ "$NO_CONFIG" -eq 1 ]; then
