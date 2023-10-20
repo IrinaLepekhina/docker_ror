@@ -34,8 +34,8 @@ docker volume prune -f
 
 # List of volumes to check and remove
 volumes=(
-  "docker_ror_db_data_ai_chat" 
-  "docker_ror_db_data_tg_bot" 
+  "db_data_ai_chat"
+  "db_data_tg_bot"
 )
 
 for volume in "${volumes[@]}"; do

@@ -3,9 +3,9 @@ version: '3.8'
 services:
 
   ai_chat:
-    # image: ghcr.io/irinalepekhina/ai_chat:dev
-    build:
-      context: ../ai_chat
+    image: ghcr.io/irinalepekhina/ai_chat:dev
+    # build:
+    #   context: ../ai_chat
       # dockerfile: ./Dockerfile.prod
     container_name: ai_chat
     ports:
@@ -22,20 +22,17 @@ services:
       ai_chat_redis:
         condition: service_started
     networks:
-      - back
-      - front
+      - ai_chat_back
+      - chat_bot
 
   ai_chat_redis:
     image: redis/redis-stack:latest
-    container_name: ai_chat_redis
-    ports:
-      - "6379:6379"
     networks:
-      - back
+      - ai_chat_back
 
   ai_chat_redis_uploader:
-    # image: ghcr.io/irinalepekhina/ai_chat:dev
-    image: infrastructure-ai_chat 
+    image: ghcr.io/irinalepekhina/ai_chat:dev
+    # image: infrastructure-ai_chat
     container_name: ai_chat_redis_uploader
     command: ["./wait-for", "--timeout=60", "ai_chat_redis:6379", "--",
       "ruby", "bin/redis_uploader.rb"]
@@ -43,14 +40,14 @@ services:
       - ../ai_chat/env/development/database
       - ../ai_chat/env/development/ai_chat
     networks:
-      - back
+      - ai_chat_back
     deploy:
       restart_policy:
         condition: none
 
   ai_chat_db_migrator:
-    # image: ghcr.io/irinalepekhina/ai_chat:dev
-    image: infrastructure-ai_chat 
+    image: ghcr.io/irinalepekhina/ai_chat:dev
+    # image: infrastructure-ai_chat 
     container_name: ai_chat_db_migrator
     command: ["./wait-for", "--timeout=60", "ai_chat_db:5432", "--",
       "bin/rails", "db:prepare"]
@@ -58,7 +55,7 @@ services:
       - ../ai_chat/env/development/database
       - ../ai_chat/env/development/ai_chat
     networks:
-      - back
+      - ai_chat_back
     deploy:
       restart_policy:
         condition: none
@@ -71,7 +68,7 @@ services:
     volumes:
       - db_data_ai_chat:/var/lib/postgresql/data
     networks:
-      - back
+      - ai_chat_back
 
   ai_chat_redisinsight:
     image: redislabs/redisinsight:latest
@@ -81,7 +78,7 @@ services:
     volumes:
       - redisinsight_data_ai_chat:/db
     networks:
-      - back
+      - ai_chat_back
 
   selenium_chrome:
     image: selenium/standalone-chrome-debug
@@ -91,17 +88,17 @@ services:
     ports:
       - "5900:5900"
     networks:
-      - back
+      - ai_chat_back
 
 ## tg_bot services
   tg_bot:
-    # image: ghcr.io/irinalepekhina/tg_bot:dev
-    build:
-      context: ../tg_bot
+    image: ghcr.io/irinalepekhina/tg_bot:dev
+    # build:
+    #   context: ../tg_bot
       # dockerfile: ./Dockerfile.prod
     container_name: tg_bot
     ports:
-      - "3001:3000"
+      - "3001:3001"
     volumes:
       - ../tg_bot:/usr/src/app
     env_file:
@@ -115,15 +112,14 @@ services:
       ngrok:
         condition: service_started
     networks:
-      - front
+      - tg_bot_front
+      - chat_bot
 
   tg_bot_redis:
     image: redis/redis-stack:latest
     container_name: tg_bot_redis
-    ports:
-      - "6380:6379"
     networks:
-      - front
+      - tg_bot_front
 
   tg_bot_db:
     image: postgres
@@ -133,11 +129,11 @@ services:
     volumes:
       - db_data_tg_bot:/var/lib/postgresql/data
     networks:
-      - front
+      - tg_bot_front
 
   tg_bot_db_migrator:
-    # image: ghcr.io/irinalepekhina/tg_bot:dev
-    image: infrastructure-tg_bot
+    image: ghcr.io/irinalepekhina/tg_bot:dev
+    # image: infrastructure-tg_bot
     container_name:  tg_bot_db_migrator
     command: ["./wait-for", "--timeout=60", "tg_bot_db:5432", "--",
       "bin/rails", "db:prepare"]
@@ -145,37 +141,38 @@ services:
       - ../tg_bot/env/development/database
       - ../tg_bot/env/development/tg_bot
     networks:
-      - front
+      - tg_bot_front
     deploy:
       restart_policy:
         condition: none
 
   tg_bot_webhook:
-    # image: ghcr.io/irinalepekhina/tg_bot:dev
-    image: infrastructure-tg_bot
+    image: ghcr.io/irinalepekhina/tg_bot:dev
+    # image: infrastructure-tg_bot
     container_name:  tg_bot_webhook
     env_file:
       - ../tg_bot/env/development/database
       - ../tg_bot/env/development/tg_bot
-    command: ["./wait-for", "--timeout=90", "tg_bot:3000", "--",
+    command: ["./wait-for", "--timeout=90", "tg_bot:3001", "--",
       "ruby", "bin/set_telegram_webhook.rb"]
     networks:
-      - front
+      - tg_bot_front
     deploy:
       restart_policy:
         condition: none
         
-  signup:
-    # image: ghcr.io/irinalepekhina/tg_bot:dev
-    image: infrastructure-tg_bot
-    container_name:  signup
-    command: ["./wait-for", "--timeout=120", "tg_bot:3000", "--",
-      "ruby", "bin/initializing_bot_user.rb"]
+  tg_bot_signup:
+    image: ghcr.io/irinalepekhina/tg_bot:dev
+    # image: infrastructure-tg_bot
+    container_name:  tg_bot_signup
+    command: ["./wait-for", "--timeout=120", "tg_bot:3001", "--",
+      "rails", "runner", "bin/initializing_bot_user.rb"]
     env_file:
       - ../tg_bot/env/development/database
       - ../tg_bot/env/development/tg_bot
     networks:
-      - front
+      - tg_bot_front
+      - chat_bot
     deploy:
       restart_policy:
         condition: none
@@ -187,12 +184,12 @@ services:
       - ../tg_bot/env/development/tg_bot
     command: 
       - http
-      - "tg_bot:3000"
+      - "tg_bot:3001"
       - "--domain=sweet-vital-coral.ngrok-free.app"
     ports:
       - "4040:4040"
     networks:
-      - front
+      - tg_bot_front
 
   tg_bot_redisinsight:
     image: redislabs/redisinsight:latest
@@ -202,7 +199,7 @@ services:
     volumes:
       - redisinsight_data_tg_bot:/db
     networks:
-      - front
+      - tg_bot_front
 
 volumes:
   db_data_ai_chat:
@@ -211,7 +208,12 @@ volumes:
   redisinsight_data_tg_bot:
 
 networks:
-  front:
+  ai_chat_back:
     driver: bridge
-  back:
+    name:   ai_chat_back
+  tg_bot_front:
     driver: bridge
+    name:   tg_bot_front
+  chat_bot:
+    driver: bridge
+    name:   chat_bot

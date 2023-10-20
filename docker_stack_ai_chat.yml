@@ -25,7 +25,7 @@ services:
           memory: 128M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.muul_ai_chat.rule=Host(`web1.muul.ru`)"
+        - "traefik.http.routers.muul_ai_chat.rule=Host(`web.muul.ru`)"
         - "traefik.http.routers.muul_ai_chat.service=muul_ai_chat"
         - "traefik.http.routers.muul_ai_chat.tls.certresolver=le"
         - "traefik.http.routers.muul_ai_chat.entrypoints=websecure,web"

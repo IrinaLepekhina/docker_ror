@@ -25,7 +25,7 @@ services:
           memory: 128M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.muul_tg_bot.rule=Host(`tg1.muul.ru`)"
+        - "traefik.http.routers.muul_tg_bot.rule=Host(`tg.muul.ru`)"
         - "traefik.http.routers.muul_tg_bot.service=muul_tg_bot"
         - "traefik.http.routers.muul_tg_bot.tls.certresolver=le"
         - "traefik.http.routers.muul_tg_bot.entrypoints=websecure,web"
